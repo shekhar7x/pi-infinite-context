@@ -1,0 +1,20 @@
+{
+  "name": "pi-infinite-context",
+  "version": "0.1.0",
+  "description": "Infinite context for pi. Sessions that run for months, with nothing ever cut: old turns fold into a summary, the originals stay searchable and fetchable.",
+  "keywords": ["pi-package", "pi-extension", "infinite-context", "long-context", "context-window", "memory", "compaction"],
+  "license": "MIT",
+  "type": "module",
+  "files": ["extensions", "README.md", "LICENSE", "CHANGELOG.md"],
+  "pi": {
+    "extensions": ["./extensions/infinite-context.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "scripts": {
+    "test": "bun test"
+  }
+}
