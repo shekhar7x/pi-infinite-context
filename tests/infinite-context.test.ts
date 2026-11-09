@@ -52,8 +52,12 @@ test("under budget: no fold, view untouched", async () => {
   const calls = { n: 0 }, ms = convo();
   withBudget("under", 10_000_000);
   const { h } = load();
-  expect(await h.context({ messages: ms }, session("under", ms, calls))).toBeUndefined();
+  const r: any = await h.context({ messages: ms }, session("under", ms, calls));
+  expect(r.messages).toEqual(ms); // nothing folded: the window holds every turn
   expect(calls.n).toBe(0);
+  const saved = JSON.parse(readFileSync(join(DIR, "under.json"), "utf8"));
+  expect(saved.window.length).toBe(ms.length); // window persisted even with no fold
+  expect(saved.folded.length).toBe(0);
 });
 
 test("over budget: one call, last 5 prompts + newest group kept, tool groups folded first", async () => {

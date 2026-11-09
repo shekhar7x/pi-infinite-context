@@ -15,7 +15,9 @@
  *           < first user turn 80 < last `keepLatestPrompts` (5) user prompts 100.
  *           Ties broken by LRU (last access / timestamp). The newest group is
  *           never folded.
- * Persist:  ~/.pi/agent/infinite-context/<sessionId>.json  (config, folded keys,
+ * Window:   the persisted `window` list is the source of truth for what the model
+ *           sees; new turns are appended to it, folding removes them from it.
+ * Persist:  ~/.pi/agent/infinite-context/<sessionId>.json  (config, window, folded keys,
  *           summary, LRU stamps) — reloaded on restart/resume.
  *
  * Commands: /window  /budget <tokens>  /fold [ratio]  /unfold  /keep <n>
@@ -45,7 +47,8 @@ interface State {
 	version: 1;
 	config: Config;
 	summary: string;
-	folded: string[]; // message keys currently replaced by the summary
+	window: string[]; // SOURCE OF TRUTH: keys of the turns in the attention window (what the model sees)
+	folded: string[]; // keys that left the window into the summary (originals stay in the session)
 	access: Record<string, number>; // key -> last access (LRU)
 	updatedAt: number;
 }
@@ -173,9 +176,9 @@ export default function (pi: ExtensionAPI) {
 		stSession = sid;
 		try {
 			const s = JSON.parse(readFileSync(fileOf(sid), "utf8")) as State;
-			st = { ...s, config: { ...defaults(), ...s.config } };
+			st = { ...s, window: s.window ?? [], folded: s.folded ?? [], config: { ...defaults(), ...s.config } };
 		} catch {
-			st = { version: 1, config: defaults(), summary: "", folded: [], access: {}, updatedAt: Date.now() };
+			st = { version: 1, config: defaults(), summary: "", window: [], folded: [], access: {}, updatedAt: Date.now() };
 			try {
 				save(ctx); // create the file right away so the window is always visible on disk
 			} catch {
@@ -231,11 +234,26 @@ export default function (pi: ExtensionAPI) {
 			timestamp: 0,
 		};
 	}
+	/** Admit turns the window has not seen yet (new messages enter at the tail). True if it changed. */
+	function sync(messages: Msg[], s: State): boolean {
+		const known = new Set([...s.window, ...s.folded]);
+		let changed = false;
+		for (const m of messages) {
+			if (isSummary(m)) continue;
+			const k = keyOf(m);
+			if (!known.has(k)) {
+				s.window.push(k);
+				known.add(k);
+				changed = true;
+			}
+		}
+		return changed;
+	}
+	/** The view = summary node + the turns the window holds. The window decides, not the folded list. */
 	function render(messages: Msg[], s: State): Msg[] {
-		if (!s.folded.length) return messages;
-		const gone = new Set(s.folded);
-		const rest = messages.filter((m) => !gone.has(keyOf(m)));
-		return s.summary ? [summaryNode(s), ...rest] : rest;
+		const inWindow = new Set(s.window);
+		const rest = messages.filter((m) => !isSummary(m) && inWindow.has(keyOf(m)));
+		return s.summary && s.folded.length ? [summaryNode(s), ...rest] : rest;
 	}
 
 	function priorityOf(g: Msg[], userRank: Map<string, number>, firstUserKey: string, cfg: Config): number {
@@ -289,8 +307,8 @@ export default function (pi: ExtensionAPI) {
 	async function fold(ctx: ExtensionContext, messages: Msg[], s: State, ratio: number, signal?: AbortSignal): Promise<boolean> {
 		const view = render(messages, s);
 		const want = Math.floor(total(view) * ratio);
-		const gone = new Set(s.folded);
-		const live = messages.filter((m) => !gone.has(keyOf(m)) && !isSummary(m));
+		sync(messages, s);
+		const live = render(messages, s).filter((m) => !isSummary(m));
 		const gs = groupsOf(live);
 		if (gs.length < 2) return false;
 
@@ -326,7 +344,9 @@ export default function (pi: ExtensionAPI) {
 		if (!summary) return false;
 
 		s.summary = summary;
-		for (const m of turns) s.folded.push(keyOf(m));
+		const out = new Set(turns.map(keyOf));
+		s.window = s.window.filter((k) => !out.has(k)); // leave the window...
+		for (const k of out) s.folded.push(k); // ...into the summary
 		save(ctx);
 		return true;
 	}
@@ -334,6 +354,7 @@ export default function (pi: ExtensionAPI) {
 	// ── the view applied before every LLM call ──
 	pi.on("context", async (event, ctx) => {
 		const s = load(ctx);
+		if (sync(event.messages, s)) save(ctx); // the window is persisted on every change, fold or not
 		if (s.config.maxInputTokens <= 0) return;
 		let view = render(event.messages, s);
 		if (total(view) > s.config.maxInputTokens) {
@@ -356,7 +377,7 @@ export default function (pi: ExtensionAPI) {
 			`∞ ~${Math.round(vt / 1000)}k/${Math.round(s.config.maxInputTokens / 1000)}k` +
 				(s.folded.length ? ` · ${s.folded.length} folded` : ""),
 		);
-		return s.folded.length ? { messages: view } : undefined;
+		return { messages: view };
 	});
 
 	// ── user control ──
@@ -372,7 +393,7 @@ export default function (pi: ExtensionAPI) {
 			ctx.ui.notify(
 				`max=${s.config.maxInputTokens || "off"} fold=${s.config.foldRatio} keepLatestPrompts=${s.config.keepLatestPrompts}\n` +
 					`raw ${msgs.length} msgs / ${total(msgs)} tok → view ${view.length} msgs / ${total(view)} tok\n` +
-					`folded ${s.folded.length} msgs; summary ${s.summary ? estimateTokens(summaryNode(s)) : 0} tok\nfile: ${fileOf(stSession)}`,
+					`window ${s.window.length} turns; folded ${s.folded.length} msgs; summary ${s.summary ? estimateTokens(summaryNode(s)) : 0} tok\nfile: ${fileOf(stSession)}`,
 				"info",
 			);
 		},
@@ -415,6 +436,8 @@ export default function (pi: ExtensionAPI) {
 			const s = load(ctx);
 			s.folded = [];
 			s.summary = "";
+			s.window = [];
+			sync(currentMessages(ctx), s); // window = every turn again
 			save(ctx);
 			ctx.ui.notify("window cleared", "info");
 		},
