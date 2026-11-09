@@ -14,7 +14,7 @@ mock.module("@earendil-works/pi-coding-agent", () => ({
 }));
 
 const DIR = mkdtempSync(join(tmpdir(), "aw-"));
-process.env.PI_IC_STATE_DIR = DIR;
+process.env.PI_INFINITE_CONTEXT_STATE_DIR = DIR;
 const { default: ext } = await import("../extensions/infinite-context.ts");
 
 const T = (role: string, ts: number, text: string) => ({ role, timestamp: ts, content: [{ type: "text", text }] });

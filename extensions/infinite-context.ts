@@ -20,7 +20,7 @@
  *
  * Commands: /window  /budget <tokens>  /fold [ratio]  /unfold  /keep <n>
  * Tools:    search_turns(query), fetch_turn(id)
- * Env:      PI_IC_MAX_INPUT_TOKENS, PI_IC_FOLD_RATIO, PI_IC_KEEP_LATEST_PROMPTS (defaults), PI_IC_SUMMARIZER_MODEL=provider/id
+ * Env:      PI_INFINITE_CONTEXT_MAX_INPUT_TOKENS, PI_INFINITE_CONTEXT_FOLD_RATIO, PI_INFINITE_CONTEXT_KEEP_LATEST_PROMPTS (defaults), PI_INFINITE_CONTEXT_SUMMARIZER_MODEL=provider/id
  *
  * Requires pi's built-in compaction off ("compaction": {"enabled": false}).
  * Load: pi install git:github.com/shekhar7x/pi-infinite-context   (or: pi --extension ./extensions/infinite-context.ts)
@@ -51,7 +51,7 @@ interface State {
 }
 
 const SUMMARY_MARK = "[Infinite context summary";
-const DIR = join(process.env.PI_IC_STATE_DIR ?? join(homedir(), ".pi", "agent", "infinite-context"));
+const DIR = join(process.env.PI_INFINITE_CONTEXT_STATE_DIR ?? join(homedir(), ".pi", "agent", "infinite-context"));
 
 const envNum = (k: string, d: number) => {
 	const n = Number(process.env[k]);
@@ -161,9 +161,9 @@ export default function (pi: ExtensionAPI) {
 	let indexedCount = -1;
 
 	const defaults = (): Config => ({
-		maxInputTokens: envNum("PI_IC_MAX_INPUT_TOKENS", 120_000),
-		foldRatio: envNum("PI_IC_FOLD_RATIO", 0.6),
-		keepLatestPrompts: envNum("PI_IC_KEEP_LATEST_PROMPTS", 5),
+		maxInputTokens: envNum("PI_INFINITE_CONTEXT_MAX_INPUT_TOKENS", 120_000),
+		foldRatio: envNum("PI_INFINITE_CONTEXT_FOLD_RATIO", 0.6),
+		keepLatestPrompts: envNum("PI_INFINITE_CONTEXT_KEEP_LATEST_PROMPTS", 5),
 	});
 	const fileOf = (sid: string) => join(DIR, `${sid}.json`);
 
@@ -252,7 +252,7 @@ export default function (pi: ExtensionAPI) {
 
 	async function summarize(ctx: ExtensionContext, prior: string, turns: Msg[], prompts: [string, string], signal?: AbortSignal) {
 		let model = ctx.model;
-		const spec = process.env.PI_IC_SUMMARIZER_MODEL;
+		const spec = process.env.PI_INFINITE_CONTEXT_SUMMARIZER_MODEL;
 		if (spec?.includes("/")) {
 			const [p, id] = spec.split("/", 2);
 			model = ctx.modelRegistry.find(p, id) ?? model;
@@ -352,7 +352,7 @@ export default function (pi: ExtensionAPI) {
 		// Footer: message tokens of what is sent (excludes system prompt + tool defs, so ~).
 		const vt = total(view);
 		ctx.ui.setStatus(
-			"ic",
+			"infinite-context",
 			`∞ ~${Math.round(vt / 1000)}k/${Math.round(s.config.maxInputTokens / 1000)}k` +
 				(s.folded.length ? ` · ${s.folded.length} folded` : ""),
 		);
