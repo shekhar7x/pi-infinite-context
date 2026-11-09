@@ -14,7 +14,7 @@ mock.module("@earendil-works/pi-coding-agent", () => ({
 }));
 
 const DIR = mkdtempSync(join(tmpdir(), "aw-"));
-process.env.PI_IC_DIR = DIR;
+process.env.PI_IC_STATE_DIR = DIR;
 const { default: ext } = await import("../extensions/infinite-context.ts");
 
 const T = (role: string, ts: number, text: string) => ({ role, timestamp: ts, content: [{ type: "text", text }] });
@@ -45,7 +45,7 @@ function convo() {
   return ms;
 }
 const withBudget = (id: string, max: number) => {
-  writeFileSync(join(DIR, `${id}.json`), JSON.stringify({ version: 1, config: { maxInputTokens: max, foldRatio: 0.6, keepPrompts: 5 }, summary: "", folded: [], access: {}, updatedAt: 0 }));
+  writeFileSync(join(DIR, `${id}.json`), JSON.stringify({ version: 1, config: { maxInputTokens: max, foldRatio: 0.6, keepLatestPrompts: 5 }, summary: "", folded: [], access: {}, updatedAt: 0 }));
 };
 
 test("under budget: no fold, view untouched", async () => {

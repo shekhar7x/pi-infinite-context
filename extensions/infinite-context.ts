@@ -12,7 +12,7 @@
  *           picked by priority then LRU, summarized in ONE LLM call.
  * Priority (low -> folded first):
  *           tool group 20 < assistant text 30 < other 25.. < older user 40
- *           < first user turn 80 < last `keepPrompts` (5) user prompts 100.
+ *           < first user turn 80 < last `keepLatestPrompts` (5) user prompts 100.
  *           Ties broken by LRU (last access / timestamp). The newest group is
  *           never folded.
  * Persist:  ~/.pi/agent/infinite-context/<sessionId>.json  (config, folded keys,
@@ -20,7 +20,7 @@
  *
  * Commands: /window  /budget <tokens>  /fold [ratio]  /unfold  /keep <n>
  * Tools:    search_turns(query), fetch_turn(id)
- * Env:      PI_IC_MAX, PI_IC_FOLD, PI_IC_KEEP (defaults), PI_IC_MODEL=provider/id
+ * Env:      PI_IC_MAX_INPUT_TOKENS, PI_IC_FOLD_RATIO, PI_IC_KEEP_LATEST_PROMPTS (defaults), PI_IC_SUMMARIZER_MODEL=provider/id
  *
  * Requires pi's built-in compaction off ("compaction": {"enabled": false}).
  * Load: pi install git:github.com/shekhar7x/pi-infinite-context   (or: pi --extension ./extensions/infinite-context.ts)
@@ -39,7 +39,7 @@ type Msg = any; // AgentMessage
 interface Config {
 	maxInputTokens: number; // 0 = window off
 	foldRatio: number;
-	keepPrompts: number;
+	keepLatestPrompts: number;
 }
 interface State {
 	version: 1;
@@ -51,7 +51,7 @@ interface State {
 }
 
 const SUMMARY_MARK = "[Infinite context summary";
-const DIR = join(process.env.PI_IC_DIR ?? join(homedir(), ".pi", "agent", "infinite-context"));
+const DIR = join(process.env.PI_IC_STATE_DIR ?? join(homedir(), ".pi", "agent", "infinite-context"));
 
 const envNum = (k: string, d: number) => {
 	const n = Number(process.env[k]);
@@ -161,9 +161,9 @@ export default function (pi: ExtensionAPI) {
 	let indexedCount = -1;
 
 	const defaults = (): Config => ({
-		maxInputTokens: envNum("PI_IC_MAX", 120_000),
-		foldRatio: envNum("PI_IC_FOLD", 0.6),
-		keepPrompts: envNum("PI_IC_KEEP", 5),
+		maxInputTokens: envNum("PI_IC_MAX_INPUT_TOKENS", 120_000),
+		foldRatio: envNum("PI_IC_FOLD_RATIO", 0.6),
+		keepLatestPrompts: envNum("PI_IC_KEEP_LATEST_PROMPTS", 5),
 	});
 	const fileOf = (sid: string) => join(DIR, `${sid}.json`);
 
@@ -242,7 +242,7 @@ export default function (pi: ExtensionAPI) {
 		const m = g[0];
 		if (m.role === "user") {
 			const k = keyOf(m);
-			if ((userRank.get(k) ?? 1e9) < cfg.keepPrompts) return 100; // last N user prompts
+			if ((userRank.get(k) ?? 1e9) < cfg.keepLatestPrompts) return 100; // last N user prompts
 			if (k === firstUserKey) return 80;
 			return 40;
 		}
@@ -252,7 +252,7 @@ export default function (pi: ExtensionAPI) {
 
 	async function summarize(ctx: ExtensionContext, prior: string, turns: Msg[], prompts: [string, string], signal?: AbortSignal) {
 		let model = ctx.model;
-		const spec = process.env.PI_IC_MODEL;
+		const spec = process.env.PI_IC_SUMMARIZER_MODEL;
 		if (spec?.includes("/")) {
 			const [p, id] = spec.split("/", 2);
 			model = ctx.modelRegistry.find(p, id) ?? model;
@@ -370,7 +370,7 @@ export default function (pi: ExtensionAPI) {
 			const msgs = currentMessages(ctx);
 			const view = render(msgs, s);
 			ctx.ui.notify(
-				`max=${s.config.maxInputTokens || "off"} fold=${s.config.foldRatio} keepPrompts=${s.config.keepPrompts}\n` +
+				`max=${s.config.maxInputTokens || "off"} fold=${s.config.foldRatio} keepLatestPrompts=${s.config.keepLatestPrompts}\n` +
 					`raw ${msgs.length} msgs / ${total(msgs)} tok → view ${view.length} msgs / ${total(view)} tok\n` +
 					`folded ${s.folded.length} msgs; summary ${s.summary ? estimateTokens(summaryNode(s)) : 0} tok\nfile: ${fileOf(stSession)}`,
 				"info",
@@ -394,9 +394,9 @@ export default function (pi: ExtensionAPI) {
 			const n = Number.parseInt(a.trim(), 10);
 			if (!Number.isFinite(n) || n < 0) return ctx.ui.notify("usage: /keep <n>", "warning");
 			const s = load(ctx);
-			s.config.keepPrompts = n;
+			s.config.keepLatestPrompts = n;
 			save(ctx);
-			ctx.ui.notify(`keepPrompts = ${n}`, "info");
+			ctx.ui.notify(`keepLatestPrompts = ${n}`, "info");
 		},
 	});
 	pi.registerCommand("fold", {

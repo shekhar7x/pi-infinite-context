@@ -81,13 +81,13 @@ model's window so there is room for the system prompt and tool definitions.
   | 30 | assistant text |
   | 40 | older user prompts |
   | 80 | first user prompt |
-  | 100 | last `keepPrompts` (default 5) user prompts |
+  | 100 | last `keepLatestPrompts` (default 5) user prompts |
 
   A tool call and its results fold together. The newest group is never folded.
 - **Summary** ends with a `Searchable:` line of exact words, so the originals are easy to find.
 - **Search:** an in-memory BM25 index over every turn. `search_turns(query)` finds them,
   `fetch_turn(id)` reads one (paged) and marks it recently used.
-- **Saved state:** `~/.pi/agent/infinite-context/<sessionId>.json`. Change the folder with `PI_IC_DIR`.
+- **Saved state:** `~/.pi/agent/infinite-context/<sessionId>.json`. Change the folder with `PI_IC_STATE_DIR`.
 
 ## Commands
 
@@ -103,11 +103,11 @@ model's window so there is room for the system prompt and tool definitions.
 
 | Variable | Default | |
 |---|---|---|
-| `PI_IC_MAX` | `120000` | max input tokens |
-| `PI_IC_FOLD` | `0.6` | share of the view to fold |
-| `PI_IC_KEEP` | `5` | protected latest user prompts |
-| `PI_IC_MODEL` | current model | summarizer, `provider/id` |
-| `PI_IC_DIR` | `~/.pi/agent/infinite-context` | state folder |
+| `PI_IC_MAX_INPUT_TOKENS` | `120000` | max input tokens |
+| `PI_IC_FOLD_RATIO` | `0.6` | share of the view to fold |
+| `PI_IC_KEEP_LATEST_PROMPTS` | `5` | protected latest user prompts |
+| `PI_IC_SUMMARIZER_MODEL` | current model | summarizer, `provider/id` |
+| `PI_IC_STATE_DIR` | `~/.pi/agent/infinite-context` | state folder |
 
 ## Honest limits
 
