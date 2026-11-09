@@ -23,11 +23,31 @@ model can call two tools at any time to get it back:
 The summary ends with a `Searchable:` line of exact words, so the model knows what to search for.
 These are ordinary pi tools, called the same way as MCP tools, and they work on any folded turn.
 
+## You choose what stays: priority + LRU
+
+Two rules decide what folds first, and you control both.
+
+- **Priority.** Every turn has a rank. Tool output folds first, then assistant text, then older
+  prompts. Your first prompt and your latest prompts fold last. The ranks are listed under
+  [How it works](#how-it-works).
+- **LRU (least recently used).** Among turns of the same rank, the one you have touched least goes
+  first. When the model fetches an old turn with `fetch_turn`, that turn counts as fresh and is kept
+  longer.
+
+What you can set:
+
+- `/keep <n>` sets how many of your latest prompts stay untouchable (default 5).
+- `/budget <tokens>` sets how big the window may grow before anything folds.
+- `/fold [ratio]` folds now, and the ratio says how much (default 0.6 of the window).
+- `/unfold` brings the raw turns back.
+- The ranks are plain numbers in `priorityOf` in `extensions/infinite-context.ts`. Edit them to
+  change the order.
+
 ## Why you'll like it
 
 - **No cut, no loss.** Folded turns stay in the session and come back with `search_turns` and `fetch_turn`.
-- **You choose the size.** Set the budget, how much to fold, and how many recent prompts stay untouchable.
-- **Smart order.** Tool output goes first. Your latest prompts go last.
+- **You choose what stays.** Priority + LRU decide the order, and you set the budget, the fold size and how many recent prompts are protected.
+- **Smart order.** Tool output goes first. Your latest prompts go last. Turns the model fetches stay longer.
 - **One call, not many.** Everything is folded in a single summarizer call.
 - **Survives restarts.** The window is saved to a file and restored when you resume.
 - **Always visible.** The footer shows `∞ ~84k/120k · 214 folded`.
@@ -96,6 +116,7 @@ model's window so there is room for the system prompt and tool definitions.
   folded share of your budget, the call fails and history stays raw.
 - Token counts are estimates (characters / 4).
 - Search is keyword (BM25). There are no embeddings.
+- You can't pin an individual message yet. You protect your latest prompts with `/keep` and tune the ranks in code.
 
 ## Development
 
