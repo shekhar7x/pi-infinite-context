@@ -12,6 +12,17 @@ what the model sees  =  [summary]  +  [turns still in the window]
 what you keep        =  every turn, forever (the session file)
 ```
 
+## Older messages are always reachable
+
+Folding only shrinks what the model sees. Every older message stays in the session file, and the
+model can call two tools at any time to get it back:
+
+- **`search_turns(query)`** finds older messages by keyword, ranked, with ids and snippets.
+- **`fetch_turn(id)`** returns one full message, paged for long ones.
+
+The summary ends with a `Searchable:` line of exact words, so the model knows what to search for.
+These are ordinary pi tools, called the same way as MCP tools, and they work on any folded turn.
+
 ## Why you'll like it
 
 - **No cut, no loss.** Folded turns stay in the session and come back with `search_turns` and `fetch_turn`.
@@ -24,7 +35,7 @@ what you keep        =  every turn, forever (the session file)
 ## Install
 
 ```bash
-pi install git:github.com/<owner>/pi-infinite-context
+pi install git:github.com/shekhar7x/pi-infinite-context
 ```
 
 Turn pi's built-in compaction off so the two don't fight (`~/.pi/agent/settings.json`):

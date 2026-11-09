@@ -23,7 +23,7 @@
  * Env:      PI_IC_MAX, PI_IC_FOLD, PI_IC_KEEP (defaults), PI_IC_MODEL=provider/id
  *
  * Requires pi's built-in compaction off ("compaction": {"enabled": false}).
- * Load: pi install git:github.com/<owner>/pi-infinite-context   (or: pi --extension ./extensions/infinite-context.ts)
+ * Load: pi install git:github.com/shekhar7x/pi-infinite-context   (or: pi --extension ./extensions/infinite-context.ts)
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
